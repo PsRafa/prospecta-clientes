@@ -13,10 +13,8 @@ const STATUS_LABEL: Record<LeadStatus, string> = {
 };
 
 type WebsiteFilter = "todos" | "sem_site" | "com_site";
-type SearchMode = "cidade" | "brasil";
 
 export default function Home() {
-  const [mode, setMode] = useState<SearchMode>("cidade");
   const [niche, setNiche] = useState("");
   const [city, setCity] = useState("");
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -48,8 +46,8 @@ export default function Home() {
     setError(null);
     setFailedCities([]);
     try {
-      const payload =
-        mode === "cidade" ? { mode, niche, city } : { mode, niche };
+      const trimmedCity = city.trim();
+      const payload = trimmedCity ? { niche, city: trimmedCity } : { niche };
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -89,7 +87,7 @@ export default function Home() {
         <header>
           <h1 className="text-2xl font-semibold">Prospecção de Comércios</h1>
           <p className="text-sm text-neutral-600">
-            Busque comércios por nicho e cidade para encontrar leads de criação de sites.
+            Busque um nicho no Brasil inteiro e filtre por cidade, região, site e avaliação depois.
           </p>
         </header>
 
@@ -107,38 +105,15 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium">Abrangência</label>
-            <div className="flex gap-1 rounded border border-neutral-300 p-1">
-              <button
-                type="button"
-                onClick={() => setMode("cidade")}
-                className={`rounded px-3 py-1.5 text-sm ${mode === "cidade" ? "bg-neutral-900 text-white" : "text-neutral-700"}`}
-              >
-                Cidade específica
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("brasil")}
-                className={`rounded px-3 py-1.5 text-sm ${mode === "brasil" ? "bg-neutral-900 text-white" : "text-neutral-700"}`}
-              >
-                Brasil inteiro
-              </button>
-            </div>
+            <label className="text-sm font-medium" htmlFor="city">Cidade (opcional)</label>
+            <input
+              id="city"
+              className="w-56 rounded border border-neutral-300 px-3 py-2 text-sm"
+              placeholder="deixe em branco p/ buscar no Brasil todo"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+            />
           </div>
-
-          {mode === "cidade" && (
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" htmlFor="city">Cidade</label>
-              <input
-                id="city"
-                className="w-56 rounded border border-neutral-300 px-3 py-2 text-sm"
-                placeholder="ex: São Paulo, SP"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                required
-              />
-            </div>
-          )}
 
           <button
             type="submit"
@@ -146,19 +121,17 @@ export default function Home() {
             className="rounded bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {loading
-              ? mode === "brasil"
-                ? "Buscando nas 27 capitais..."
-                : "Buscando..."
+              ? city.trim()
+                ? "Buscando..."
+                : "Buscando nas 27 capitais..."
               : "Buscar"}
           </button>
 
-          {mode === "brasil" && (
-            <p className="w-full text-xs text-neutral-500">
-              Busca o nicho nas 27 capitais brasileiras (uma consulta por
-              capital) e salva tudo no banco. Pode levar até 1 minuto. Depois
-              você filtra por cidade, avaliação e site na tela.
-            </p>
-          )}
+          <p className="w-full text-xs text-neutral-500">
+            {city.trim()
+              ? "Busca só na cidade informada."
+              : "Sem cidade, busca automaticamente nas 27 capitais do Brasil (pode levar até 1 minuto) e você filtra por cidade, região, site e avaliação depois."}
+          </p>
         </form>
 
         {error && (

@@ -7,17 +7,10 @@ import type { Business } from "@/lib/types";
 
 export const maxDuration = 60;
 
-const searchSchema = z.discriminatedUnion("mode", [
-  z.object({
-    mode: z.literal("cidade"),
-    niche: z.string().trim().min(2, "Informe o nicho (ex: salão de beleza)"),
-    city: z.string().trim().min(2, "Informe a cidade (ex: São Paulo, SP)"),
-  }),
-  z.object({
-    mode: z.literal("brasil"),
-    niche: z.string().trim().min(2, "Informe o nicho (ex: salão de beleza)"),
-  }),
-]);
+const searchSchema = z.object({
+  niche: z.string().trim().min(2, "Informe o nicho (ex: salão de beleza)"),
+  city: z.string().trim().optional(),
+});
 
 async function searchCity(niche: string, city: string, state: string | null) {
   const query = state ? `${city}, ${state}` : city;
@@ -47,15 +40,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const targets =
-    parsed.data.mode === "cidade"
-      ? (() => {
-          const [cityPart, statePart] = parsed.data.city
-            .split(",")
-            .map((part) => part.trim());
-          return [{ city: cityPart ?? parsed.data.city, state: statePart ?? null }];
-        })()
-      : BRAZIL_CAPITALS.map((c) => ({ city: c.city, state: c.state as string | null }));
+  const requestedCity = parsed.data.city?.trim();
+
+  const targets = requestedCity
+    ? (() => {
+        const [cityPart, statePart] = requestedCity
+          .split(",")
+          .map((part) => part.trim());
+        return [{ city: cityPart ?? requestedCity, state: statePart ?? null }];
+      })()
+    : BRAZIL_CAPITALS.map((c) => ({ city: c.city, state: c.state as string | null }));
 
   const settled = await Promise.allSettled(
     targets.map((t) => searchCity(parsed.data.niche, t.city, t.state))
