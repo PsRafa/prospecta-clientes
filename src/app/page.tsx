@@ -12,7 +12,40 @@ const STATUS_LABEL: Record<LeadStatus, string> = {
   descartado: "Descartado",
 };
 
+const STATUS_DOT: Record<LeadStatus, string> = {
+  novo: "bg-slate-400",
+  contatado: "bg-sky-400",
+  negociando: "bg-amber-400",
+  fechado: "bg-emerald-400",
+  descartado: "bg-rose-500",
+};
+
 type WebsiteFilter = "todos" | "sem_site" | "com_site";
+
+function WebsiteBadge({ business }: { business: Business }) {
+  if (!business.website) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/25 bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+        sem site — lead quente
+      </span>
+    );
+  }
+  if (!business.has_website) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-fuchsia-400/25 bg-fuchsia-400/10 px-2.5 py-1 text-[11px] font-medium text-fuchsia-300">
+        <span className="h-1.5 w-1.5 rounded-full bg-fuchsia-400" />
+        só rede social
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+      site próprio
+    </span>
+  );
+}
 
 export default function Home() {
   const [niche, setNiche] = useState("");
@@ -40,6 +73,15 @@ export default function Home() {
     });
   }, [businesses, websiteFilter, minRating, cityFilter]);
 
+  const stats = useMemo(() => {
+    const total = businesses.length;
+    const semSite = businesses.filter((b) => !b.website).length;
+    const soRedeSocial = businesses.filter((b) => b.website && !b.has_website).length;
+    const ratings = businesses.map((b) => b.rating).filter((r): r is number => r != null);
+    const avgRating = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
+    return { total, semSite, soRedeSocial, avgRating };
+  }, [businesses]);
+
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -66,9 +108,7 @@ export default function Home() {
   }
 
   async function updateStatus(id: string, status: LeadStatus) {
-    setBusinesses((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status } : b))
-    );
+    setBusinesses((prev) => prev.map((b) => (b.id === id ? { ...b, status } : b)));
     await fetch(`/api/businesses/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -82,170 +122,224 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 p-6 text-neutral-900">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold">Prospecção de Comércios</h1>
-          <p className="text-sm text-neutral-600">
-            Busque um nicho no Brasil inteiro e filtre por cidade, região, site e avaliação depois.
+    <div className="min-h-screen pb-24">
+      <div className="mx-auto max-w-6xl px-6 pt-14 sm:px-8">
+        <header className="mb-10">
+          <p className="mb-3 text-xs font-medium uppercase tracking-[0.2em] text-[var(--muted-2)]">
+            Prospecção de leads
+          </p>
+          <h1 className="bg-gradient-to-br from-white via-white to-[var(--muted)] bg-clip-text text-4xl font-semibold tracking-tight text-transparent sm:text-5xl">
+            Prospecta Clientes
+          </h1>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-[var(--muted)]">
+            Busque um nicho no Brasil inteiro e filtre por cidade, site e avaliação
+            depois. Comércios sem site próprio aparecem destacados como leads quentes.
           </p>
         </header>
 
-        <form onSubmit={handleSearch} className="flex flex-wrap items-end gap-3 rounded-lg border border-neutral-200 bg-white p-4">
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium" htmlFor="niche">Nicho</label>
-            <input
-              id="niche"
-              className="w-56 rounded border border-neutral-300 px-3 py-2 text-sm"
-              placeholder="ex: salão de beleza"
-              value={niche}
-              onChange={(e) => setNiche(e.target.value)}
-              required
-            />
+        <form
+          onSubmit={handleSearch}
+          className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] backdrop-blur-xl sm:p-6"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+            <div className="flex flex-1 flex-col gap-1.5">
+              <label className="text-xs font-medium text-[var(--muted)]" htmlFor="niche">
+                Nicho
+              </label>
+              <input
+                id="niche"
+                className="rounded-xl border border-[var(--border)] bg-black/20 px-3.5 py-2.5 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-2)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]"
+                placeholder="ex: salão de beleza"
+                value={niche}
+                onChange={(e) => setNiche(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="flex flex-1 flex-col gap-1.5">
+              <label className="text-xs font-medium text-[var(--muted)]" htmlFor="city">
+                Cidade <span className="text-[var(--muted-2)]">(opcional)</span>
+              </label>
+              <input
+                id="city"
+                className="rounded-xl border border-[var(--border)] bg-black/20 px-3.5 py-2.5 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-2)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]"
+                placeholder="em branco = Brasil todo"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-6 py-2.5 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+            >
+              <span className="relative z-10">
+                {loading ? (city.trim() ? "Buscando..." : "Buscando nas 27 capitais...") : "Buscar"}
+              </span>
+              <span className="absolute inset-0 -translate-x-full bg-white/20 transition-transform duration-500 group-hover:translate-x-0" />
+            </button>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium" htmlFor="city">Cidade (opcional)</label>
-            <input
-              id="city"
-              className="w-56 rounded border border-neutral-300 px-3 py-2 text-sm"
-              placeholder="deixe em branco p/ buscar no Brasil todo"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {loading
-              ? city.trim()
-                ? "Buscando..."
-                : "Buscando nas 27 capitais..."
-              : "Buscar"}
-          </button>
-
-          <p className="w-full text-xs text-neutral-500">
+          <p className="mt-3.5 text-xs text-[var(--muted-2)]">
             {city.trim()
               ? "Busca só na cidade informada."
-              : "Sem cidade, busca automaticamente nas 27 capitais do Brasil (pode levar até 1 minuto) e você filtra por cidade, região, site e avaliação depois."}
+              : "Sem cidade, busca automaticamente nas 27 capitais do Brasil (pode levar até 1 minuto)."}
           </p>
         </form>
 
         {error && (
-          <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="mt-4 rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
             {error}
-          </p>
+          </div>
         )}
 
         {failedCities.length > 0 && (
-          <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <div className="mt-4 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-300">
             Falha ao buscar em: {failedCities.join(", ")}. As demais cidades foram salvas normalmente.
-          </p>
+          </div>
         )}
 
         {businesses.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-neutral-200 bg-white p-4">
-            {cityOptions.length > 1 && (
-              <>
-                <label className="text-sm font-medium">Cidade:</label>
+          <>
+            <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: "Resultados", value: stats.total, accent: "text-white" },
+                { label: "Sem site", value: stats.semSite, accent: "text-amber-300" },
+                { label: "Só rede social", value: stats.soRedeSocial, accent: "text-fuchsia-300" },
+                {
+                  label: "Avaliação média",
+                  value: stats.avgRating ? stats.avgRating.toFixed(1) : "—",
+                  accent: "text-emerald-300",
+                },
+              ].map((s) => (
+                <div
+                  key={s.label}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 backdrop-blur-xl"
+                >
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">
+                    {s.label}
+                  </p>
+                  <p className={`mt-1.5 text-2xl font-semibold tabular-nums ${s.accent}`}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3.5 backdrop-blur-xl">
+              {cityOptions.length > 1 && (
                 <select
-                  className="rounded border border-neutral-300 px-2 py-1 text-sm"
+                  className="rounded-lg border border-[var(--border)] bg-black/20 px-3 py-1.5 text-xs text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
                   value={cityFilter}
                   onChange={(e) => setCityFilter(e.target.value)}
                 >
-                  <option value="todas">Todas ({cityOptions.length})</option>
+                  <option value="todas">Todas as cidades ({cityOptions.length})</option>
                   {cityOptions.map((c) => (
                     <option key={c} value={c}>
                       {c}
                     </option>
                   ))}
                 </select>
-              </>
-            )}
+              )}
 
-            <label className="text-sm font-medium">Site:</label>
-            <select
-              className="rounded border border-neutral-300 px-2 py-1 text-sm"
-              value={websiteFilter}
-              onChange={(e) => setWebsiteFilter(e.target.value as WebsiteFilter)}
-            >
-              <option value="todos">Todos</option>
-              <option value="sem_site">Sem site (lead quente)</option>
-              <option value="com_site">Com site</option>
-            </select>
+              <select
+                className="rounded-lg border border-[var(--border)] bg-black/20 px-3 py-1.5 text-xs text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
+                value={websiteFilter}
+                onChange={(e) => setWebsiteFilter(e.target.value as WebsiteFilter)}
+              >
+                <option value="todos">Site: todos</option>
+                <option value="sem_site">Site: sem site próprio (lead quente)</option>
+                <option value="com_site">Site: com site próprio</option>
+              </select>
 
-            <label className="text-sm font-medium">Avaliação mín.:</label>
-            <select
-              className="rounded border border-neutral-300 px-2 py-1 text-sm"
-              value={minRating}
-              onChange={(e) => setMinRating(Number(e.target.value))}
-            >
-              <option value={0}>Qualquer</option>
-              <option value={3}>3+</option>
-              <option value={4}>4+</option>
-              <option value={4.5}>4.5+</option>
-            </select>
+              <select
+                className="rounded-lg border border-[var(--border)] bg-black/20 px-3 py-1.5 text-xs text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
+                value={minRating}
+                onChange={(e) => setMinRating(Number(e.target.value))}
+              >
+                <option value={0}>Avaliação: qualquer</option>
+                <option value={3}>3+</option>
+                <option value={4}>4+</option>
+                <option value={4.5}>4.5+</option>
+              </select>
 
-            <button
-              onClick={handleExport}
-              className="ml-auto rounded border border-neutral-300 px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
-            >
-              Exportar CSV ({filtered.length})
-            </button>
-          </div>
+              <button
+                onClick={handleExport}
+                className="ml-auto rounded-lg border border-[var(--border-strong)] bg-white/5 px-3.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-white/10"
+              >
+                Exportar CSV ({filtered.length})
+              </button>
+            </div>
+          </>
         )}
 
         {filtered.length > 0 && (
-          <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white">
-            <table className="w-full min-w-[900px] text-sm">
-              <thead className="bg-neutral-100 text-left">
-                <tr>
-                  <th className="px-3 py-2">Nome</th>
-                  <th className="px-3 py-2">Telefone</th>
-                  <th className="px-3 py-2">Site</th>
-                  <th className="px-3 py-2">Endereço</th>
-                  <th className="px-3 py-2">Avaliação</th>
-                  <th className="px-3 py-2">Status</th>
+          <div className="scrollbar-thin mt-4 overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] backdrop-blur-xl">
+            <table className="w-full min-w-[1000px] table-fixed text-sm">
+              <colgroup>
+                <col className="w-[220px]" />
+                <col className="w-[130px]" />
+                <col className="w-[230px]" />
+                <col className="w-[240px]" />
+                <col className="w-[90px]" />
+                <col className="w-[150px]" />
+              </colgroup>
+              <thead>
+                <tr className="border-b border-[var(--border)] text-left text-[11px] uppercase tracking-wide text-[var(--muted-2)]">
+                  <th className="px-4 py-3 font-medium">Nome</th>
+                  <th className="px-4 py-3 font-medium">Telefone</th>
+                  <th className="px-4 py-3 font-medium">Site</th>
+                  <th className="px-4 py-3 font-medium">Endereço</th>
+                  <th className="px-4 py-3 font-medium">Avaliação</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((b) => (
-                  <tr key={b.id} className="border-t border-neutral-100">
-                    <td className="px-3 py-2 font-medium">
-                      {b.name}
-                      {!b.has_website && (
-                        <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
-                          sem site
-                        </span>
-                      )}
+                  <tr
+                    key={b.id}
+                    className="border-b border-[var(--border)] transition last:border-0 hover:bg-[var(--surface-hover)]"
+                  >
+                    <td className="px-4 py-3 font-medium text-[var(--foreground)]">
+                      <span className="line-clamp-2 break-words">{b.name}</span>
                     </td>
-                    <td className="px-3 py-2">{b.phone ?? "—"}</td>
-                    <td className="px-3 py-2">
-                      {b.website ? (
-                        <a href={b.website} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-                          site
-                        </a>
-                      ) : (
-                        "—"
-                      )}
+                    <td className="px-4 py-3 whitespace-nowrap text-[var(--muted)]">{b.phone ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1.5 overflow-hidden">
+                        <WebsiteBadge business={b} />
+                        {b.website && (
+                          <a
+                            href={b.website}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block truncate text-xs text-[var(--muted-2)] underline decoration-dotted hover:text-[var(--accent)]"
+                            title={b.website}
+                          >
+                            {b.website.replace(/^https?:\/\//, "")}
+                          </a>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-3 py-2">{b.address ?? "—"}</td>
-                    <td className="px-3 py-2">{b.rating ?? "—"}</td>
-                    <td className="px-3 py-2">
-                      <select
-                        className="rounded border border-neutral-300 px-2 py-1 text-xs"
-                        value={b.status}
-                        onChange={(e) => updateStatus(b.id, e.target.value as LeadStatus)}
-                      >
-                        {Object.entries(STATUS_LABEL).map(([value, label]) => (
-                          <option key={value} value={value}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
+                    <td className="px-4 py-3 text-[var(--muted)]">
+                      <span className="line-clamp-2 break-words">{b.address ?? "—"}</span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap tabular-nums text-[var(--muted)]">{b.rating ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      <div className="relative inline-flex items-center">
+                        <span
+                          className={`pointer-events-none absolute left-2.5 h-1.5 w-1.5 rounded-full ${STATUS_DOT[b.status]}`}
+                        />
+                        <select
+                          className="rounded-lg border border-[var(--border)] bg-black/20 py-1.5 pl-6 pr-2.5 text-xs text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
+                          value={b.status}
+                          onChange={(e) => updateStatus(b.id, e.target.value as LeadStatus)}
+                        >
+                          {Object.entries(STATUS_LABEL).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </td>
                   </tr>
                 ))}

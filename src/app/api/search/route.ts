@@ -3,6 +3,7 @@ import { z } from "zod";
 import { searchPlaces } from "@/lib/googlePlaces";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { BRAZIL_CAPITALS } from "@/lib/brazilCapitals";
+import { isRealWebsite } from "@/lib/website";
 import type { Business } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -21,6 +22,7 @@ async function searchCity(niche: string, city: string, state: string | null) {
     niche,
     phone: place.phone,
     website: place.website,
+    has_website: isRealWebsite(place.website),
     address: place.address,
     city,
     state,

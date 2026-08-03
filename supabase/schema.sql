@@ -13,7 +13,7 @@ create table if not exists businesses (
   lat double precision,
   lng double precision,
   rating numeric,
-  has_website boolean generated always as (website is not null and website <> '') stored,
+  has_website boolean not null default false,
   instagram_url text,
   facebook_url text,
   whatsapp_url text,
