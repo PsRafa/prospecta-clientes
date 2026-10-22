@@ -1,4 +1,5 @@
 import type { Business } from "./types";
+import { recommendService } from "./serviceRecommendation";
 
 const COLUMNS: { key: keyof Business; label: string }[] = [
   { key: "name", label: "Nome" },
@@ -28,10 +29,15 @@ function escapeCsvValue(value: unknown): string {
 }
 
 export function businessesToCsv(businesses: Business[]): string {
-  const header = COLUMNS.map((c) => c.label).join(",");
-  const lines = businesses.map((b) =>
-    COLUMNS.map((c) => escapeCsvValue(b[c.key])).join(",")
-  );
+  const header = [...COLUMNS.map((c) => c.label), "Serviço recomendado"].join(",");
+  const lines = businesses.map((b) => {
+    const recommendation = recommendService(b);
+    const cells = [
+      ...COLUMNS.map((c) => escapeCsvValue(b[c.key])),
+      escapeCsvValue(recommendation ? `${recommendation.label} (${recommendation.price})` : ""),
+    ];
+    return cells.join(",");
+  });
   return [header, ...lines].join("\n");
 }
 

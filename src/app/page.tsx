@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Business, LeadStatus, SearchHistoryEntry } from "@/lib/types";
 import { businessesToCsv, downloadCsv } from "@/lib/csv";
+import { recommendService } from "@/lib/serviceRecommendation";
 
 const STATUS_LABEL: Record<LeadStatus, string> = {
   novo: "Novo",
@@ -474,6 +475,15 @@ export default function Home() {
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1.5 overflow-hidden">
                         <WebsiteBadge business={b} />
+                        {(() => {
+                          const rec = recommendService(b);
+                          if (!rec) return null;
+                          return (
+                            <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-sky-400/25 bg-sky-400/10 px-2.5 py-1 text-[11px] font-medium text-sky-300">
+                              Vender: {rec.label} ({rec.price})
+                            </span>
+                          );
+                        })()}
                         {b.website && (
                           <a
                             href={b.website}
