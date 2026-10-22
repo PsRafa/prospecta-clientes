@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { Business, LeadStatus } from "@/lib/types";
+import { useEffect, useMemo, useState } from "react";
+import type { Business, LeadStatus, SearchHistoryEntry } from "@/lib/types";
 import { businessesToCsv, downloadCsv } from "@/lib/csv";
 
 const STATUS_LABEL: Record<LeadStatus, string> = {
@@ -69,6 +69,17 @@ export default function Home() {
   const [cityFilter, setCityFilter] = useState<string>("todas");
   const [enrichingIds, setEnrichingIds] = useState<Set<string>>(new Set());
   const [bulkEnriching, setBulkEnriching] = useState(false);
+  const [cnpjLookingUpIds, setCnpjLookingUpIds] = useState<Set<string>>(new Set());
+  const [bulkCnpjLookup, setBulkCnpjLookup] = useState(false);
+  const [history, setHistory] = useState<SearchHistoryEntry[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/search/history")
+      .then((res) => res.json())
+      .then((data) => setHistory(data.history ?? []))
+      .catch(() => {});
+  }, []);
 
   const cityOptions = useMemo(() => {
     const set = new Set(businesses.map((b) => b.city).filter((c): c is string => !!c));
@@ -112,6 +123,10 @@ export default function Home() {
       setBusinesses(data.businesses ?? []);
       setFailedCities(data.failedCities ?? []);
       setCityFilter("todas");
+      fetch("/api/search/history")
+        .then((r) => r.json())
+        .then((d) => setHistory(d.history ?? []))
+        .catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro inesperado");
     } finally {
@@ -162,6 +177,66 @@ export default function Home() {
     }
   }
 
+  async function lookupCnpjOne(id: string) {
+    setCnpjLookingUpIds((prev) => new Set(prev).add(id));
+    try {
+      const res = await fetch(`/api/businesses/${id}/cnpj`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.business) {
+        setBusinesses((prev) => prev.map((b) => (b.id === id ? data.business : b)));
+      }
+    } catch {
+      // ignora falhas individuais, usuário pode tentar de novo
+    } finally {
+      setCnpjLookingUpIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
+
+  async function lookupCnpjAll() {
+    const targets = filtered.filter((b) => b.cnpj && !b.razao_social);
+    if (targets.length === 0) return;
+    setBulkCnpjLookup(true);
+    const CONCURRENCY = 4;
+    try {
+      for (let i = 0; i < targets.length; i += CONCURRENCY) {
+        const batch = targets.slice(i, i + CONCURRENCY);
+        await Promise.all(batch.map((b) => lookupCnpjOne(b.id)));
+      }
+    } finally {
+      setBulkCnpjLookup(false);
+    }
+  }
+
+  async function loadFromHistory(entry: SearchHistoryEntry) {
+    setLoading(true);
+    setError(null);
+    setFailedCities([]);
+    setShowHistory(false);
+    try {
+      setNiche(entry.niche);
+      setCity(entry.is_national ? "" : [entry.city, entry.state].filter(Boolean).join(", "));
+      const params = new URLSearchParams({ niche: entry.niche });
+      if (entry.is_national) {
+        params.set("national", "true");
+      } else if (entry.city) {
+        params.set("city", entry.city);
+      }
+      const res = await fetch(`/api/businesses?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Erro ao carregar histórico");
+      setBusinesses(data.businesses ?? []);
+      setCityFilter("todas");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro inesperado");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleExport() {
     if (filtered.length === 0) return;
     downloadCsv(`leads-${niche}-${city}.csv`.replace(/\s+/g, "-"), businessesToCsv(filtered));
@@ -181,6 +256,37 @@ export default function Home() {
             Busque um nicho no Brasil inteiro e filtre por cidade, site e avaliação
             depois. Comércios sem site próprio aparecem destacados como leads quentes.
           </p>
+
+          {history.length > 0 && (
+            <div className="relative mt-4 inline-block">
+              <button
+                type="button"
+                onClick={() => setShowHistory((v) => !v)}
+                className="rounded-lg border border-[var(--border-strong)] bg-white/5 px-3.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-white/10"
+              >
+                Buscas recentes ({history.length})
+              </button>
+              {showHistory && (
+                <div className="absolute left-0 z-10 mt-2 w-80 max-h-80 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl backdrop-blur-xl">
+                  {history.map((h) => (
+                    <button
+                      key={h.id}
+                      type="button"
+                      onClick={() => loadFromHistory(h)}
+                      className="flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left text-xs transition hover:bg-white/10"
+                    >
+                      <span className="font-medium text-[var(--foreground)]">{h.niche}</span>
+                      <span className="text-[var(--muted-2)]">
+                        {h.is_national ? "Brasil todo" : [h.city, h.state].filter(Boolean).join(", ")} ·{" "}
+                        {h.result_count} resultados ·{" "}
+                        {new Date(h.created_at).toLocaleDateString("pt-BR")}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </header>
 
         <form
@@ -317,6 +423,14 @@ export default function Home() {
               </button>
 
               <button
+                onClick={lookupCnpjAll}
+                disabled={bulkCnpjLookup}
+                className="rounded-lg border border-[var(--border-strong)] bg-white/5 px-3.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {bulkCnpjLookup ? "Consultando..." : "Consultar CNPJ"}
+              </button>
+
+              <button
                 onClick={handleExport}
                 className="rounded-lg border border-[var(--border-strong)] bg-white/5 px-3.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-white/10"
               >
@@ -396,6 +510,17 @@ export default function Home() {
                           </div>
                         )}
                         {b.cnpj && <span className="text-[11px] text-[var(--muted-2)]">CNPJ: {b.cnpj}</span>}
+                        {b.razao_social && (
+                          <span className="text-[11px] text-[var(--muted-2)]">{b.razao_social}</span>
+                        )}
+                        {b.responsavel && (
+                          <span className="text-[11px] text-[var(--muted-2)]">Sócio: {b.responsavel}</span>
+                        )}
+                        {b.situacao_cadastral && (
+                          <span className="text-[11px] text-[var(--muted-2)]">
+                            Situação: {b.situacao_cadastral}
+                          </span>
+                        )}
                         {b.has_website && !isEnriched(b) && (
                           <button
                             onClick={() => enrichOne(b.id)}
@@ -403,6 +528,15 @@ export default function Home() {
                             className="self-start rounded-md border border-[var(--border-strong)] px-2 py-1 text-[11px] font-medium text-[var(--muted)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {enrichingIds.has(b.id) ? "Enriquecendo..." : "Enriquecer"}
+                          </button>
+                        )}
+                        {b.cnpj && !b.razao_social && (
+                          <button
+                            onClick={() => lookupCnpjOne(b.id)}
+                            disabled={cnpjLookingUpIds.has(b.id)}
+                            className="self-start rounded-md border border-[var(--border-strong)] px-2 py-1 text-[11px] font-medium text-[var(--muted)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {cnpjLookingUpIds.has(b.id) ? "Consultando..." : "Consultar CNPJ"}
                           </button>
                         )}
                       </div>

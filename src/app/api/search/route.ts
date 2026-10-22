@@ -82,5 +82,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  await supabase.from("search_history").insert({
+    niche: parsed.data.niche,
+    city: requestedCity ? targets[0].city : null,
+    state: requestedCity ? targets[0].state : null,
+    is_national: !requestedCity,
+    result_count: data?.length ?? 0,
+  });
+
   return NextResponse.json({ businesses: data, failedCities });
 }

@@ -1,5 +1,15 @@
 export type LeadStatus = "novo" | "contatado" | "negociando" | "fechado" | "descartado";
 
+export interface SearchHistoryEntry {
+  id: string;
+  niche: string;
+  city: string | null;
+  state: string | null;
+  is_national: boolean;
+  result_count: number;
+  created_at: string;
+}
+
 export interface Business {
   id: string;
   google_place_id: string;

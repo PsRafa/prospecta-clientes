@@ -50,5 +50,6 @@ Abra [http://localhost:3000](http://localhost:3000), informe um nicho
 - [x] Fase 2: enriquecimento automático — extrair Instagram/Facebook/WhatsApp/
       LinkedIn e CNPJ do site institucional de cada comércio (botão por linha
       ou "Enriquecer sites" em lote).
-- [ ] Fase 3: consulta de CNPJ via BrasilAPI (razão social, sócio responsável,
-      situação cadastral) e histórico de buscas anteriores.
+- [x] Fase 3: consulta de CNPJ via BrasilAPI (razão social, sócio responsável,
+      situação cadastral) e histórico de buscas anteriores (recarrega do
+      Supabase sem gastar cota do Google Places).
