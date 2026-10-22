@@ -47,7 +47,8 @@ Abra [http://localhost:3000](http://localhost:3000), informe um nicho
 
 - [x] Fase 1 (MVP): busca via Google Places, tabela de resultados, filtros de
       site/avaliação, export CSV, status de lead (CRM leve).
-- [ ] Fase 2: enriquecimento automático — extrair Instagram/Facebook/WhatsApp
-      e CNPJ do site institucional de cada comércio.
+- [x] Fase 2: enriquecimento automático — extrair Instagram/Facebook/WhatsApp/
+      LinkedIn e CNPJ do site institucional de cada comércio (botão por linha
+      ou "Enriquecer sites" em lote).
 - [ ] Fase 3: consulta de CNPJ via BrasilAPI (razão social, sócio responsável,
       situação cadastral) e histórico de buscas anteriores.

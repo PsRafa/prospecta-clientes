@@ -22,6 +22,16 @@ const STATUS_DOT: Record<LeadStatus, string> = {
 
 type WebsiteFilter = "todos" | "sem_site" | "com_site";
 
+function isEnriched(business: Business): boolean {
+  return Boolean(
+    business.instagram_url ||
+      business.facebook_url ||
+      business.whatsapp_url ||
+      business.linkedin_url ||
+      business.cnpj
+  );
+}
+
 function WebsiteBadge({ business }: { business: Business }) {
   if (!business.website) {
     return (
@@ -57,6 +67,8 @@ export default function Home() {
   const [websiteFilter, setWebsiteFilter] = useState<WebsiteFilter>("todos");
   const [minRating, setMinRating] = useState(0);
   const [cityFilter, setCityFilter] = useState<string>("todas");
+  const [enrichingIds, setEnrichingIds] = useState<Set<string>>(new Set());
+  const [bulkEnriching, setBulkEnriching] = useState(false);
 
   const cityOptions = useMemo(() => {
     const set = new Set(businesses.map((b) => b.city).filter((c): c is string => !!c));
@@ -114,6 +126,40 @@ export default function Home() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
+  }
+
+  async function enrichOne(id: string) {
+    setEnrichingIds((prev) => new Set(prev).add(id));
+    try {
+      const res = await fetch(`/api/businesses/${id}/enrich`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.business) {
+        setBusinesses((prev) => prev.map((b) => (b.id === id ? data.business : b)));
+      }
+    } catch {
+      // ignora falhas individuais, usuário pode tentar de novo
+    } finally {
+      setEnrichingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
+
+  async function enrichAll() {
+    const targets = filtered.filter((b) => b.has_website && !isEnriched(b));
+    if (targets.length === 0) return;
+    setBulkEnriching(true);
+    const CONCURRENCY = 4;
+    try {
+      for (let i = 0; i < targets.length; i += CONCURRENCY) {
+        const batch = targets.slice(i, i + CONCURRENCY);
+        await Promise.all(batch.map((b) => enrichOne(b.id)));
+      }
+    } finally {
+      setBulkEnriching(false);
+    }
   }
 
   function handleExport() {
@@ -263,8 +309,16 @@ export default function Home() {
               </select>
 
               <button
+                onClick={enrichAll}
+                disabled={bulkEnriching}
+                className="ml-auto rounded-lg border border-[var(--border-strong)] bg-white/5 px-3.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {bulkEnriching ? "Enriquecendo..." : "Enriquecer sites"}
+              </button>
+
+              <button
                 onClick={handleExport}
-                className="ml-auto rounded-lg border border-[var(--border-strong)] bg-white/5 px-3.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-white/10"
+                className="rounded-lg border border-[var(--border-strong)] bg-white/5 px-3.5 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-white/10"
               >
                 Exportar CSV ({filtered.length})
               </button>
@@ -316,6 +370,40 @@ export default function Home() {
                           >
                             {b.website.replace(/^https?:\/\//, "")}
                           </a>
+                        )}
+                        {(b.instagram_url || b.facebook_url || b.whatsapp_url || b.linkedin_url) && (
+                          <div className="flex flex-wrap gap-2 text-[11px]">
+                            {b.instagram_url && (
+                              <a href={b.instagram_url} target="_blank" rel="noreferrer" className="text-[var(--muted-2)] underline decoration-dotted hover:text-[var(--accent)]">
+                                Instagram
+                              </a>
+                            )}
+                            {b.facebook_url && (
+                              <a href={b.facebook_url} target="_blank" rel="noreferrer" className="text-[var(--muted-2)] underline decoration-dotted hover:text-[var(--accent)]">
+                                Facebook
+                              </a>
+                            )}
+                            {b.whatsapp_url && (
+                              <a href={b.whatsapp_url} target="_blank" rel="noreferrer" className="text-[var(--muted-2)] underline decoration-dotted hover:text-[var(--accent)]">
+                                WhatsApp
+                              </a>
+                            )}
+                            {b.linkedin_url && (
+                              <a href={b.linkedin_url} target="_blank" rel="noreferrer" className="text-[var(--muted-2)] underline decoration-dotted hover:text-[var(--accent)]">
+                                LinkedIn
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {b.cnpj && <span className="text-[11px] text-[var(--muted-2)]">CNPJ: {b.cnpj}</span>}
+                        {b.has_website && !isEnriched(b) && (
+                          <button
+                            onClick={() => enrichOne(b.id)}
+                            disabled={enrichingIds.has(b.id)}
+                            className="self-start rounded-md border border-[var(--border-strong)] px-2 py-1 text-[11px] font-medium text-[var(--muted)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {enrichingIds.has(b.id) ? "Enriquecendo..." : "Enriquecer"}
+                          </button>
                         )}
                       </div>
                     </td>
